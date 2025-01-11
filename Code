@@ -1,0 +1,139 @@
+#code 
+# Mount Google Drive 
+from google.colab import drive 
+drive.mount('/content/drive') 
+ 
+# Import necessary libraries 
+import pandas as pd 
+import numpy as np 
+import matplotlib.pyplot as plt 
+from sklearn.model_selection import train_test_split 
+from sklearn.preprocessing import StandardScaler, LabelEncoder 
+from sklearn.ensemble import RandomForestClassifier 
+!pip install xgboost tensorflow 
+from xgboost import XGBClassifier 
+from tensorflow.keras.models import Sequential 
+from tensorflow.keras.layers import LSTM, Dense, Dropout 
+ 
+# Load dataset 
+data_path = "/content/drive/MyDrive/predictive_maintenance.csv" 
+data = pd.read_csv(data_path) 
+ 
+# Explore dataset 
+print("First 5 rows of the dataset:") 
+print(data.head()) 
+print("\nDataset Info:") 
+print(data.info()) 
+ 
+# Check for missing values 
+print("\nMissing Values:") 
+print(data.isnull().sum()) 
+ 
+# Identify column names 
+print("\nColumns in the dataset:") 
+print(data.columns) 
+ 
+# Automatically identify the target column 
+# Replace this logic with the exact name of the target column if known 
+possible_target_columns = ["Failure", "Target", "Machine_Failure", 
+"Label"]  # Add more potential names here 
+target_column = None 
+for col in possible_target_columns: 
+    if col in data.columns: 
+        target_column = col 
+        break 
+ 
+if target_column is None: 
+    raise ValueError("Target column not found. Please specify the correct 
+target column manually.") 
+ 
+print(f"Identified target column: {target_column}") 
+ 
+# Separate features and target 
+features = data.drop(columns=[target_column]) 
+target = data[target_column] 
+ 
+# Handle categorical data 
+for column in features.select_dtypes(include=['object']).columns: 
+    print(f"Encoding column: {column}") 
+    le = LabelEncoder() 
+    features[column] = le.fit_transform(features[column]) 
+ 
+# Normalize numeric features 
+scaler = StandardScaler() 
+features_scaled = scaler.fit_transform(features) 
+ 
+# Train-test split 
+X_train, X_test, y_train, y_test = train_test_split(features_scaled, 
+target, test_size=0.2, random_state=42) 
+ 
+# -------------------- Machine Learning Models -------------------- 
+ 
+# Random Forest Classifier 
+rf_model = RandomForestClassifier(n_estimators=100, random_state=42) 
+rf_model.fit(X_train, y_train) 
+rf_accuracy = rf_model.score(X_test, y_test) 
+print(f"Random Forest Accuracy: {rf_accuracy * 100:.2f}%") 
+ 
+# XGBoost Classifier 
+xgb_model = XGBClassifier(use_label_encoder=False, eval_metric='logloss', 
+random_state=42) 
+xgb_model.fit(X_train, y_train) 
+xgb_accuracy = xgb_model.score(X_test, y_test) 
+print(f"XGBoost Accuracy: {xgb_accuracy * 100:.2f}%") 
+ 
+# -------------------- Deep Learning Model (LSTM) -------------------- 
+ 
+# Reshape data for LSTM 
+time_steps = 1  # Adjust based on your time-series needs 
+n_features = X_train.shape[1] 
+X_train_lstm = X_train.reshape(X_train.shape[0], time_steps, n_features) 
+X_test_lstm = X_test.reshape(X_test.shape[0], time_steps, n_features) 
+ 
+# LSTM Model 
+lstm_model = Sequential([ 
+    LSTM(50, activation='relu', input_shape=(time_steps, n_features)), 
+    Dropout(0.2), 
+    Dense(1, activation='sigmoid') 
+]) 
+ 
+lstm_model.compile(optimizer='adam', loss='binary_crossentropy', 
+metrics=['accuracy']) 
+ 
+# Train LSTM 
+history = lstm_model.fit(X_train_lstm, y_train, epochs=10, batch_size=32, 
+validation_data=(X_test_lstm, y_test)) 
+ 
+# Evaluate LSTM 
+lstm_loss, lstm_accuracy = lstm_model.evaluate(X_test_lstm, y_test) 
+print(f"LSTM Accuracy: {lstm_accuracy * 100:.2f}%") 
+ 
+# -------------------- Visualization -------------------- 
+ 
+# Accuracy plot for LSTM 
+plt.figure(figsize=(8, 5)) 
+plt.plot(history.history['accuracy'], label='Train Accuracy') 
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy') 
+plt.title('LSTM Model Accuracy') 
+plt.xlabel('Epochs') 
+plt.ylabel('Accuracy') 
+plt.legend() 
+plt.show() 
+ 
+# Random Forest Feature Importance 
+plt.figure(figsize=(8, 5)) 
+feature_importances = rf_model.feature_importances_ 
+plt.barh(features.columns, feature_importances) 
+plt.title('Random Forest Feature Importance') 
+plt.xlabel('Importance') 
+plt.ylabel('Feature') 
+plt.show() 
+ 
+# Predictions vs Actual (Random Forest) 
+plt.figure(figsize=(8, 5)) 
+predictions = rf_model.predict(X_test[:50]) 
+plt.plot(predictions, label="Predictions") 
+plt.plot(y_test[:50].values, label="Actual") 
+plt.title("Predictions vs Actual (Random Forest)") 
+plt.legend() 
+plt.show()
